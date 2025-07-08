@@ -12,9 +12,8 @@ let data: Array<Byte> = [2, 0, 0, 0, 0, 0, 0, 2, 1, 2, 3]
 class TestBigEndianReader {
     @TestCase
     func test_BigEndianReader() {
-        let byteArrayStream = ByteArrayStream()
-        byteArrayStream.write(data)
-        let reader = BigEndianReader(byteArrayStream)
+        let byteBuffer = ByteBuffer(data)
+        let reader = BigEndianReader(byteBuffer)
 
         var value = reader.read<Int32>()
         @Expect(value.isSome(), true)
@@ -33,9 +32,8 @@ class TestBigEndianReader {
 class TestLittleEndianReader {
     @TestCase
     func test_LittleEndianReader() {
-        let byteArrayStream = ByteArrayStream()
-        byteArrayStream.write(data)
-        let reader = LittleEndianReader(byteArrayStream)
+        let byteBuffer = ByteBuffer(data)
+        let reader = LittleEndianReader(byteBuffer)
 
         var value = reader.read<Int32>()
         @Expect(value.isSome(), true)
@@ -54,9 +52,8 @@ class TestLittleEndianReader {
 class TestEndianReader {
     @TestCase
     func test_EndianReader() {
-        let byteArrayStream = ByteArrayStream()
-        byteArrayStream.write(data)
-        let reader = EndianReader(byteArrayStream)
+        let byteBuffer = ByteBuffer(data)
+        let reader = EndianReader(byteBuffer)
 
         var value = reader.read<Int32>()
         @Expect(value.isSome(), true)
