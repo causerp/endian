@@ -4,6 +4,45 @@ import endian.utils.ReadEndian
 import std.binary.{BigEndianOrder, LittleEndianOrder}
 import std.io.{InputStream, Seekable, SeekPosition}
 
+private func peekEndian<T, U>(seekableStream: T): ?U where T <: InputStream & Seekable,
+    U <: CType & BigEndianOrder<U> & LittleEndianOrder<U> {
+    let buffer = Array<Byte>(Int64(sizeOf<U>()), repeat: 0)
+    let readBytes = seekableStream.read(buffer)
+    if (readBytes > 0) {
+        seekableStream.seek(Current(-readBytes))
+    }
+    if (readBytes == buffer.size) {
+        return @ReadEndian[U](buffer)
+    }
+    return None
+}
+
+private func peekBigEndian<T, U>(seekableStream: T): ?U where T <: InputStream & Seekable,
+    U <: CType & BigEndianOrder<U> {
+    let buffer = Array<Byte>(Int64(sizeOf<U>()), repeat: 0)
+    let readBytes = seekableStream.read(buffer)
+    if (readBytes > 0) {
+        seekableStream.seek(Current(-readBytes))
+    }
+    if (readBytes == buffer.size) {
+        return U.readBigEndian(buffer)
+    }
+    return None
+}
+
+private func peekLittleEndian<T, U>(seekableStream: T): ?U where T <: InputStream & Seekable,
+    U <: CType & LittleEndianOrder<U> {
+    let buffer = Array<Byte>(Int64(sizeOf<U>()), repeat: 0)
+    let readBytes = seekableStream.read(buffer)
+    if (readBytes > 0) {
+        seekableStream.seek(Current(-readBytes))
+    }
+    if (readBytes == buffer.size) {
+        return U.readLittleEndian(buffer)
+    }
+    return None
+}
+
 private func readEndian<U>(inputStream: InputStream): ?U where U <: CType & BigEndianOrder<U> & LittleEndianOrder<U> {
     let buffer = Array<Byte>(Int64(sizeOf<U>()), repeat: 0)
     if (inputStream.read(buffer) == buffer.size) {
@@ -28,11 +67,76 @@ private func readLittleEndian<U>(inputStream: InputStream): ?U where U <: CType 
     return None
 }
 
-public class EndianReader<T> where T <: InputStream & Seekable {
-    private let inputStream: T
+/**
+ * Endian reader base class that implements both InputStream and Seekable interfaces.
+ */
+public abstract class BaseEndianReader<T> <: InputStream & Seekable where T <: InputStream & Seekable {
+    protected let inputStream: T
 
     public init(input: T) {
         inputStream = input
+    }
+
+    public override func read(buffer: Array<UInt8>): Int64 {
+        inputStream.read(buffer)
+    }
+
+    public override prop length: Int64 {
+        get() {
+            inputStream.length
+        }
+    }
+
+    public override prop position: Int64 {
+        get() {
+            inputStream.position
+        }
+    }
+
+    public override prop remainLength: Int64 {
+        get() {
+            inputStream.remainLength
+        }
+    }
+
+    public override func seek(sp: SeekPosition): Int64 {
+        inputStream.seek(sp)
+    }
+}
+
+/**
+ * Endian reader base class that implements the InputStream interface.
+ */
+public abstract class BaseEndianInputStream<T> <: InputStream where T <: InputStream {
+    protected let inputStream: T
+
+    public init(input: T) {
+        inputStream = input
+    }
+
+    public override func read(buffer: Array<UInt8>): Int64 {
+        inputStream.read(buffer)
+    }
+}
+
+/**
+ * Native endian reader class for streamable and seekable objects (current system endian).
+ */
+public class EndianReader<T> <: BaseEndianReader<T> where T <: InputStream & Seekable {
+    public init(input: T) {
+        super(input)
+    }
+
+    public func peek<U>(): ?U where U <: CType & BigEndianOrder<U> & LittleEndianOrder<U> {
+        peekEndian(inputStream)
+    }
+
+    public func peekBigEndian<U>(): ?U where U <: CType & BigEndianOrder<U> {
+        peekBigEndian(inputStream)
+    }
+
+    public func peekLittleEndian<U>(): ?U where U <: CType & LittleEndianOrder<U> {
+        peekLittleEndian(inputStream)
     }
 
     public func read<U>(): ?U where U <: CType & BigEndianOrder<U> & LittleEndianOrder<U> {
@@ -46,35 +150,14 @@ public class EndianReader<T> where T <: InputStream & Seekable {
     public func readLittleEndian<U>(): ?U where U <: CType & LittleEndianOrder<U> {
         readLittleEndian(inputStream)
     }
-
-    public prop length: Int64 {
-        get() {
-            inputStream.length
-        }
-    }
-
-    public prop position: Int64 {
-        get() {
-            inputStream.position
-        }
-    }
-
-    public prop remainLength: Int64 {
-        get() {
-            inputStream.remainLength
-        }
-    }
-
-    public func seek(sp: SeekPosition): Int64 {
-        inputStream.seek(sp)
-    }
 }
 
-public class EndianInputStream<T> where T <: InputStream {
-    private let inputStream: T
-
+/**
+ * Native endian class for streamable objects (current system endian).
+ */
+public class EndianInputStream<T> <: BaseEndianInputStream<T> where T <: InputStream {
     public init(input: T) {
-        inputStream = input
+        super(input)
     }
 
     public func read<U>(): ?U where U <: CType & BigEndianOrder<U> & LittleEndianOrder<U> {
@@ -90,45 +173,16 @@ public class EndianInputStream<T> where T <: InputStream {
     }
 }
 
-public class BigEndianReader<T> where T <: InputStream & Seekable {
-    private let inputStream: T
-
+/**
+ * Big endian reader class for streamable and seekable objects.
+ */
+public class BigEndianReader<T> <: BaseEndianReader<T> where T <: InputStream & Seekable {
     public init(input: T) {
-        inputStream = input
+        super(input)
     }
 
-    public func read<U>(): ?U where U <: CType & BigEndianOrder<U> {
-        readBigEndian(inputStream)
-    }
-
-    public prop length: Int64 {
-        get() {
-            inputStream.length
-        }
-    }
-
-    public prop position: Int64 {
-        get() {
-            inputStream.position
-        }
-    }
-
-    public prop remainLength: Int64 {
-        get() {
-            inputStream.remainLength
-        }
-    }
-
-    public func seek(sp: SeekPosition): Int64 {
-        inputStream.seek(sp)
-    }
-}
-
-public class BigEndianInputStream<T> where T <: InputStream {
-    private let inputStream: T
-
-    public init(input: T) {
-        inputStream = input
+    public func peek<U>(): ?U where U <: CType & BigEndianOrder<U> {
+        peekBigEndian(inputStream)
     }
 
     public func read<U>(): ?U where U <: CType & BigEndianOrder<U> {
@@ -136,45 +190,42 @@ public class BigEndianInputStream<T> where T <: InputStream {
     }
 }
 
-public class LittleEndianReader<T> where T <: InputStream & Seekable {
-    private let inputStream: T
-
+/**
+ * Big endian class for streamable objects.
+ */
+public class BigEndianInputStream<T> <: BaseEndianInputStream<T> where T <: InputStream {
     public init(input: T) {
-        inputStream = input
+        super(input)
+    }
+
+    public func read<U>(): ?U where U <: CType & BigEndianOrder<U> {
+        readBigEndian(inputStream)
+    }
+}
+
+/**
+ * Little endian class for streamable and seekable objects.
+ */
+public class LittleEndianReader<T> <: BaseEndianReader<T> where T <: InputStream & Seekable {
+    public init(input: T) {
+        super(input)
+    }
+
+    public func peek<U>(): ?U where U <: CType & LittleEndianOrder<U> {
+        peekLittleEndian(inputStream)
     }
 
     public func read<U>(): ?U where U <: CType & LittleEndianOrder<U> {
         readLittleEndian(inputStream)
     }
-
-    public prop length: Int64 {
-        get() {
-            inputStream.length
-        }
-    }
-
-    public prop position: Int64 {
-        get() {
-            inputStream.position
-        }
-    }
-
-    public prop remainLength: Int64 {
-        get() {
-            inputStream.remainLength
-        }
-    }
-
-    public func seek(sp: SeekPosition): Int64 {
-        inputStream.seek(sp)
-    }
 }
 
-public class LittleEndianInputStream<T> where T <: InputStream {
-    private let inputStream: T
-
+/**
+ * Little endian class for streamable objects.
+ */
+public class LittleEndianInputStream<T> <: BaseEndianInputStream<T> where T <: InputStream {
     public init(input: T) {
-        inputStream = input
+        super(input)
     }
 
     public func read<U>(): ?U where U <: CType & LittleEndianOrder<U> {
